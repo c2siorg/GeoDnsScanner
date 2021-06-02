@@ -1,0 +1,2 @@
+# DNSScaner
+Distributed zdns implementation
