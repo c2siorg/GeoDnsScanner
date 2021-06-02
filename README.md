@@ -18,7 +18,7 @@ Distributed zdns implementation
     * Owner
     * Storage Admin
 
-2. Download the Service Account JSON Key File the Local Machine - Control Node and Add it the Required Directory
+2. Download the Service Account JSON Key File to the Control Node and Add it to the Required Directory
     * Keys Directory
 
 3. Link the Service Account to all the Projects of Interest by adding Service Account's Email to Projects IAM By Giving Owner Role  OR Just Give the Minimum Roles Required to Function (As above mentioned)
