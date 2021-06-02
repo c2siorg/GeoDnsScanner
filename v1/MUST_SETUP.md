@@ -1,0 +1,2 @@
+ANSIBLE_HOST_KEY_CHECKING=False
+GOOGLE_APPLICATION_CREDENTIALS=/home/pasindud/Terraform/gcp_key.json

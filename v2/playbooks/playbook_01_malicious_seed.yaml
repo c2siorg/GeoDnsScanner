@@ -1,0 +1,319 @@
+---
+- hosts: all
+
+  gather_facts: true
+
+  # Variables
+  vars: 
+    user: ssh_user
+    home_dir: /home/ssh_user
+
+    # Package Versions
+    go_lang_version: "1.15.4"
+
+    # ZDNS
+    ZDNS_git_repository: https://github.com/zmap/zdns.git
+    ZDNS_script_local: ../scripts/run_zdns.sh
+
+    # File Path of the Seed List in the GS Bucket
+    seed_file: seed_malicious.txt
+    storage_bucket: ansible_test_01
+    service_account_file: "../keys/service_account.json"
+    cloud_storage_buccket_project_id: "fluid-mix-301105"
+
+    cloud_storage_bucket_results_dir: "results_malicious_ex_02"
+    cloud_storage_bucket_logs_dir: "logs_malicious_ex_02"
+
+    # Direcotires
+    dir_tools: "tools"
+    dir_results: "zdns_results"
+    dir_seed: "seed"
+    dir_seed_downloads: "seed_downloads"
+    dir_logs: "zdns_logs"
+    dir_downloads: "downloads"
+
+    # Estimated Time for ZDNS Scan in Seconds for async value
+    ZDNS_Scan_estimated_time: 3600
+    ZDNS_Scan_poll: 10
+    
+    # Estimated Time to compress the Result File in Seconds for async value
+    compress_estimated_time: 3600
+    compress_poll: 10
+
+
+  environment: 
+        PATH: "{{ ansible_env.PATH }}:/usr/local/go/bin"
+    
+  # Current SSH user
+  remote_user: "{{ user }}"
+  tasks:
+    - name: Debug Log Variables Passed From Terraform - region
+      debug:
+        msg: "{{ region }}"
+
+    - name: Debug Log Variables Passed From Terraform - zone
+      debug:
+        msg: "{{ zone }}"
+    
+    - name: Debug Log Variables Passed From Terraform - vm_name
+      debug:
+        msg: "{{ vm_name }}"
+   
+    - name: Change file ownership, group and permissions of /home directory
+      ansible.builtin.file:
+        path: /home
+        mode: 'u=rwx,g=rwx,o=rwx' # OR mode: '0777'
+      # Previlage Escalation - Sudo
+      become: true
+        
+    - name: Create Required Directories - Multiple Directories
+      file:
+        path: "{{home_dir}}/{{ item }}"
+        state: directory
+      with_items:
+        - "{{dir_tools}}"
+        - "{{dir_results}}"
+        - "{{dir_seed}}"
+        - "{{dir_seed_downloads}}"
+        - "{{dir_logs}}"
+        - "{{dir_downloads}}"
+
+    - name: Update apt packages - Sudo apt update
+      apt: 
+        update_cache: yes
+        cache_valid_time: 3600
+      become: true
+
+    # - name: Create a directory if it does not exist
+    #   ansible.builtin.file:
+    #     path: /etc/some_directory
+    #     state: directory
+    #     mode: '0755'
+
+
+    # ###########################################################################################
+    #                     Install Dependancies
+    # ###########################################################################################
+    - name: Install Build Essentials
+      apt:
+        pkg:
+        - build-essential
+        - zlib1g-dev
+        - libncurses5-dev
+        - libgdbm-dev
+        - libnss3-dev
+        - libssl-dev
+        - libsqlite3-dev
+        - libreadline-dev
+        - libffi-dev
+        - curl
+        - libbz2-dev
+      become: true
+
+    - name: Installing GIT Using Ansible apt
+      apt:
+        name: git
+        state: present
+      become: true
+
+    - name: Installing WGET
+      apt:
+        name: wget
+        state: present
+      become: true
+
+    # - name: Installing Python-Pip
+    #   apt:
+    #     name: python-pip
+    #     state: present
+    #   become: true
+
+    # - name: Installing Python-Setuptools
+    #   apt:
+    #     name: python-setuptools
+    #     state: present
+    #   become: true
+
+    - name: Installing setuptools python library 
+      pip:
+        name: setuptools
+
+    - name: Installing Requests python library
+      pip:
+        name: requests
+
+    - name: Installing Google-Auth python library
+      pip:
+        name: google-auth
+
+    - name: Installing Google-Cloud Storage python library
+      pip:
+        name: google-cloud-storage
+
+    # Install Compressing Tools
+    - name: Installing bzip2
+      apt:
+        name: bzip2
+        state: present
+      become: true
+
+    - name: Installing pbzip2
+      apt:
+        name: pbzip2
+        state: present
+      become: true
+
+
+    # ###########################################################################################
+    #                                      Install ZDNS Tools
+    # ###########################################################################################
+    - name: Download GO Lang From https://golang.org/dl/go{{ go_lang_version }}.linux-amd64.tar.gz
+      get_url:
+        url: "https://golang.org/dl/go{{ go_lang_version }}.linux-amd64.tar.gz"
+        dest: "{{ home_dir }}/{{dir_downloads}}"
+        mode: '0777'
+
+    - name: Unarchive a file that is already on the remote machine
+      ansible.builtin.unarchive:
+        src: "{{ home_dir }}/{{dir_downloads}}/go{{ go_lang_version }}.linux-amd64.tar.gz"
+        dest: /usr/local
+        remote_src: yes
+      become: true
+
+    - name: Go Version Test Before
+      shell: 
+        cmd: "go version"
+      register: test_go
+      
+    - name: GO Lang Version Before
+      debug:
+        msg: "{{ test_go }}"
+
+    - name: Clone the ZDNS from the GIT Repository
+      git:
+        repo: "{{ ZDNS_git_repository }}"
+        dest: "{{home_dir}}/{{dir_downloads}}/zdns"
+
+    - name: Change file ownership, group and permissions of the ZDNS Build Directory
+      ansible.builtin.file:
+        path: "{{home_dir}}/{{dir_downloads}}/zdns/zdns"
+        mode: 'u=rwx,g=rwx,o=rwx' # OR mode: '0777'
+      # Previlage Escalation - Sudo
+      become: true
+
+    - name: Build ZDNS
+      shell: 
+        cmd: "go build"
+        chdir: "{{home_dir}}/{{dir_downloads}}/zdns/zdns/"
+
+    - name: Move ZDNS Executable to tools directory
+      shell: 
+        cmd: "mv {{home_dir}}/{{dir_downloads}}/zdns/zdns/zdns {{home_dir}}/{{dir_tools}}/"
+      become: true
+
+
+    # ###########################################################################################
+    #                     Upload File / Copy File From Local Machine to Remote Machine
+    # ###########################################################################################
+    - name: Copying Service Account JSON File to Remote Machine from Local Machine
+      copy:
+        src: "{{service_account_file}}"
+        dest: "{{home_dir}}/service_account.json"
+
+    # ###########################################################################################
+    #                                      Download File From GCP
+    # ###########################################################################################
+    - name: "Download {{ seed_file }}  From GCP Storage Bucket"
+      google.cloud.gcp_storage_object:
+        action: download
+        bucket: "{{storage_bucket}}"
+        src:  "seed_files/{{ seed_file }}"
+        dest: "{{home_dir}}/{{dir_seed}}/seed.txt"
+        project: "{{cloud_storage_buccket_project_id}}"
+        auth_kind: serviceaccount
+        service_account_file: "{{home_dir}}/service_account.json"
+
+
+    # ###########################################################################################
+    #                             Run ZDNS on the Downloaded Seed List - File
+    # ########################################################################################### 
+
+    - name: Copy file with owner and permission, using symbolic representation
+      ansible.builtin.copy:
+        src: "{{ZDNS_script_local}}"
+        dest: "{{home_dir}}/{{dir_tools}}/run_zdns.sh"
+        owner: "{{user}}"
+        group: "{{user}}"
+        mode: u=rwx,g=rwx,o=rwx
+
+    - name: Run ZDNS Script
+      shell: 
+        cmd: "nohup bash {{home_dir}}/{{dir_tools}}/run_zdns.sh > {{home_dir}}/{{dir_logs}}/zdns_scan.log"
+        chdir: "{{home_dir}}/{{dir_tools}}/"
+      async: "{{ZDNS_Scan_estimated_time}}"
+      poll: "{{ZDNS_Scan_poll}}"
+      register: ZDNS_script_out
+
+    - name: Debug Log - ZDNS Script Output
+      debug:
+        msg: "{{ ZDNS_script_out.stdout }}"
+
+    # TODO Redirect the ZDNS Scan Script's Output to a File and Copy the File to Local After Renaming
+
+    # ###########################################################################################
+    #                            Compress ZDNS Results File Using pbzip2
+    # ########################################################################################### 
+    - name: Get String Formatted Date - To Genrate the File Name
+      shell: 
+        cmd: "date +%Y%m%d"
+      register: date_str
+
+    - name: Debug Log - Formatted Date String
+      debug:
+        msg: "{{ date_str.stdout }}"
+
+    - name: Compress ZDNS Result File - pbzip2
+      shell: 
+        cmd: "pbzip2 -zk {{home_dir}}/{{dir_results}}/result_{{ date_str.stdout }}.out"
+        chdir: "{{home_dir}}/{{dir_results}}/"
+      async: "{{compress_estimated_time}}"
+      poll: "{{compress_poll}}"
+
+    - name: "Upload Compressed ZDNS Results to GCP Storage Bucket"
+      google.cloud.gcp_storage_object:
+        action: upload
+        bucket: "{{storage_bucket}}"
+        src:  "{{home_dir}}/{{dir_results}}/result_{{ date_str.stdout }}.out.bz2"
+        dest: "{{cloud_storage_bucket_results_dir}}/result_{{ date_str.stdout }}_{{zone}}_{{vm_name}}.out.bz2"
+        # dest: "results/result_{{ date_str.stdout }}.out.bz2"
+        project: "{{cloud_storage_buccket_project_id}}"
+        auth_kind: serviceaccount
+        service_account_file: "{{home_dir}}/service_account.json"
+
+
+    # - name: "Upload ZDNS Results to GCP Storage Bucket"
+    #   google.cloud.gcp_storage_object:
+    #     action: upload
+    #     bucket: "{{storage_bucket}}"
+    #     src:  "{{home_dir}}/{{dir_logs}}/zdns_scan.log"
+    #     dest: "results/result_{{ date_str.stdout }}_{{zone}}_{{vm_name}}.out.bz2"
+    #     # dest: "results/result_{{ date_str.stdout }}.out.bz2"
+    #     project: "{{cloud_storage_buccket_project_id}}"
+    #     auth_kind: serviceaccount
+    #     service_account_file: "{{home_dir}}/service_account.json"
+
+    # ###########################################################################################
+    #                            Upload the ZDNS Scan Log File to GCP Bucket
+    # ########################################################################################### 
+
+
+    - name: "Upload ZDNS Scan Log to GCP Storage Bucket"
+      google.cloud.gcp_storage_object:
+        action: upload
+        bucket: "{{storage_bucket}}"
+        src:  "{{home_dir}}/{{dir_logs}}/zdns_scan.log"
+        dest: "{{cloud_storage_bucket_logs_dir}}/zdns_scan_{{ date_str.stdout }}_{{zone}}_{{vm_name}}.log"
+        # dest: "results/result_{{ date_str.stdout }}.out.bz2"
+        project: "{{cloud_storage_buccket_project_id}}"
+        auth_kind: serviceaccount
+        service_account_file: "{{home_dir}}/service_account.json"

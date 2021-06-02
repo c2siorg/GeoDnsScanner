@@ -1,0 +1,30 @@
+[
+    {
+        "name": "Alexa Low Rank Seed List  - A Scan",
+        "seed_file": "seed_alexa_low.txt",
+        "ZDNS_script_file": "run_zdns_A.sh",
+        "scan_suffix": "alexa_low_A_ex03_03",
+        "vm_nodes_active": [1, 2, 3, 6, 8, 9, 10, 11, 12, 13]
+    },
+    {
+        "name": "Alexa Low Rank Seed List - CNAME Scan",
+        "seed_file": "seed_alexa_low.txt",
+        "ZDNS_script_file": "run_zdns_CNAME.sh",
+        "scan_suffix": "alexa_low_CNAME_ex03_03",
+        "vm_nodes_active": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
+    },
+    {
+        "name": "Alexa Low Rank Seed List - NS Scan",
+        "seed_file": "seed_alexa_low.txt",
+        "ZDNS_script_file": "run_zdns_NS.sh",
+        "scan_suffix": "alexa_low_NS_ex03_03",
+        "vm_nodes_active": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
+    },
+    {
+        "name": "Alexa Low Rank Seed List - MX Scan",
+        "seed_file": "seed_alexa_low.txt",
+        "ZDNS_script_file": "run_zdns_MX.sh",
+        "scan_suffix": "alexa_low_MX_ex03_03",
+        "vm_nodes_active": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
+    }
+]
