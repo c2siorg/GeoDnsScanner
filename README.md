@@ -1,4 +1,4 @@
-# DNSScaner
+# Geo DNS Scaner
 Distributed zdns implementation
 
 ### ---
